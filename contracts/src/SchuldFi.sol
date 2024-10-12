@@ -17,13 +17,14 @@ contract SchuldFi is Ownable, ERC721 {
     struct NFTDetails {
         uint256 id;
         address token;
-        uint256 amount;
+        uint256 shares;
     }
 
-    uint256 totalSupply;
+    uint256 public totalSupply;
+    address public vault;
     mapping(address token => bool isWhitelisted) public tokenWhitelist;
     mapping(uint256 nftId => NFTDetails nftDetails) public nftDetailsMap; 
-    
+    mapping(address token => uint256 tokenShares) public tokenSharesMap;
 
     modifier notZeroAmount(uint256 amount) {
         if(amount==0) {
@@ -31,6 +32,7 @@ contract SchuldFi is Ownable, ERC721 {
         }
         _;
     }
+
     modifier isWhitelistedToken(address token) {
         if(!tokenWhitelist[token]) {
             revert TokenNotWhiteListed();
@@ -39,7 +41,9 @@ contract SchuldFi is Ownable, ERC721 {
     }
 
 
-    constructor(address _owner) Ownable(_owner) ERC721("SchuldFi lpNFT", "SCHD-LPNFT-" ) {}
+    constructor(address _owner, address _vault) Ownable(_owner) ERC721("SchuldFi lpNFT", "SCHD-LPNFT" ) {
+        vault = _vault;
+    }
 
     function _baseURI() internal pure override returns (string memory) {
         return "";
@@ -49,11 +53,11 @@ contract SchuldFi is Ownable, ERC721 {
         _addLiquidity(address(0), msg.value);
     }
 
-    function addLiquidity(address _token, uint256 _amount) external notZeroAmount(_amount) {
+    function addLiquidity(address _token, uint256 _amount) external notZeroAmount(_amount) isWhitelistedToken(_token) {
         _addLiquidity(_token, _amount);
     }
 
-    function removeLiquidity(uint256 _tokenId, uint256 _amount) external notZeroAmount(_amount) {
+    function removeLiquidity(uint256 _tokenId, uint256 _amount) external notZeroAmount(_amount) isWhitelistedToken(_token) {
         address owner = _ownerOf(_tokenId);
         _checkAuthorized(owner, _msgSender(), _tokenId);
         _removeLiquidity(_tokenId, _amount);
@@ -68,6 +72,7 @@ contract SchuldFi is Ownable, ERC721 {
         
         _mint(_msgSender(), totalSupply);
         IERC20(_token).safeTransferFrom(_msgSender(), address(this), _amount);
+        IERC20(_token).safeTransfer(vault, _amount);
     }
 
     function _removeLiquidity(uint256 _tokenId, uint256 _amount) internal {
